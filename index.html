@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notes AR - v0.1</title>
+<style>
+:root{--bg:#050b14;--panel:rgba(10,30,50,.72);--line:#2fd4ff;--text:#d6f4ff;--dim:#6fa3b8;--accent:#ffb347}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:"Segoe UI",system-ui,sans-serif}
+#world{position:fixed;inset:0;background:
+ linear-gradient(rgba(47,212,255,.07) 1px,transparent 1px) 0 0/48px 48px,
+ linear-gradient(90deg,rgba(47,212,255,.07) 1px,transparent 1px) 0 0/48px 48px,
+ radial-gradient(circle at 70% 30%,#0e2a44,#050b14 70%)}
+#hud{position:fixed;top:10px;left:14px;font-size:12px;color:var(--dim);letter-spacing:.15em;z-index:5}
+.panel{position:absolute;width:260px;background:var(--panel);border:1px solid var(--line);border-radius:6px;
+ backdrop-filter:blur(6px);box-shadow:0 0 18px rgba(47,212,255,.25);animation:in .5s ease}
+@keyframes in{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
+.panel h3{margin:0;padding:6px 10px;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--line);
+ border-bottom:1px solid rgba(47,212,255,.3);cursor:move;user-select:none}
+.body{padding:10px;font-size:13px}
+.big{font-size:34px;font-weight:300}
+.bar{height:6px;background:rgba(255,255,255,.1);border-radius:3px;margin:3px 0 8px}
+.bar i{display:block;height:100%;background:var(--line);border-radius:3px;transition:width .6s}
+input{width:100%;background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--text);padding:7px;border-radius:4px;outline:none}
+.log{max-height:170px;overflow:auto;margin-bottom:8px}
+.log p{margin:4px 0}.me{color:var(--accent)}
+li{margin:3px 0;cursor:pointer}li.done{text-decoration:line-through;color:var(--dim)}
+ul{padding-left:18px;margin:8px 0 0}
+</style>
+</head>
+<body>
+<div id="world"></div>
+<div id="hud">NOTES AR // v0.1 // SIMULAÇÃO</div>
+
+<script>
+/* ============ NÚCLEO ============
+   Cada recurso é um "módulo". Para dar upgrade, basta adicionar
+   um novo bloco NOTES.register({...}) abaixo. */
+const NOTES = {
+  modules: [],
+  register(m){ this.modules.push(m); },
+  start(){
+    this.modules.forEach((m,i)=>{
+      const p = document.createElement('div');
+      p.className='panel'; p.style.left=(m.x ?? 20+i*40)+'px'; p.style.top=(m.y ?? 50+i*40)+'px';
+      p.innerHTML=`<h3>${m.title}</h3><div class="body"></div>`;
+      document.body.appendChild(p);
+      const body=p.querySelector('.body'); m.render(body);
+      if(m.update) setInterval(()=>m.update(body), m.every||1000);
+      drag(p,p.querySelector('h3'));
+    });
+  }
+};
+function drag(el,handle){
+  let ox,oy,on=false;
+  handle.onpointerdown=e=>{on=true;ox=e.clientX-el.offsetLeft;oy=e.clientY-el.offsetTop;handle.setPointerCapture(e.pointerId)};
+  handle.onpointermove=e=>{if(on){el.style.left=(e.clientX-ox)+'px';el.style.top=(e.clientY-oy)+'px'}};
+  handle.onpointerup=()=>on=false;
+}
+const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const load=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}};
+
+/* ============ MÓDULO: RELÓGIO ============ */
+NOTES.register({title:'Relógio',x:20,y:50,every:1000,
+  render(b){b.innerHTML='<div class="big" id="t"></div><div id="d" style="color:var(--dim)"></div>';this.update(b)},
+  update(b){const n=new Date();b.querySelector('#t').textContent=n.toLocaleTimeString('pt-BR');
+    b.querySelector('#d').textContent=n.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})}
+});
+
+/* ============ MÓDULO: STATUS (valores simulados) ============ */
+NOTES.register({title:'Status do sistema',x:20,y:190,every:1500,
+  render(b){b.innerHTML=['CPU','RAM','REDE'].map(n=>`<div>${n} <span id="v${n}"></span></div><div class="bar"><i id="b${n}"></i></div>`).join('');this.update(b)},
+  update(b){['CPU','RAM','REDE'].forEach(n=>{const v=Math.round(20+Math.random()*60);
+    b.querySelector('#v'+n).textContent=v+'%';b.querySelector('#b'+n).style.width=v+'%'})}
+});
+
+/* ============ MÓDULO: TAREFAS ============ */
+NOTES.register({title:'Tarefas',x:20,y:380,
+  render(b){
+    let items=load('tarefas',[]);
+    b.innerHTML='<input placeholder="Nova tarefa + Enter"><ul></ul>';
+    const ul=b.querySelector('ul'),inp=b.querySelector('input');
+    const draw=()=>{ul.innerHTML='';items.forEach((t,i)=>{const li=document.createElement('li');
+      li.textContent=t.text;if(t.done)li.className='done';
+      li.onclick=()=>{t.done=!t.done;save('tarefas',items);draw()};
+      li.oncontextmenu=e=>{e.preventDefault();items.splice(i,1);save('tarefas',items);draw()};
+      ul.appendChild(li)})};
+    inp.onkeydown=e=>{if(e.key==='Enter'&&inp.value.trim()){items.push({text:inp.value.trim(),done:false});inp.value='';save('tarefas',items);draw()}};
+    draw();
+    b.insertAdjacentHTML('beforeend','<div style="color:var(--dim);font-size:11px;margin-top:6px">Clique = concluir | Botão direito = apagar</div>');
+  }
+});
+
+/* ============ MÓDULO: ASSISTENTE ============
+   Hoje responde com regras simples (simulação).
+   No futuro, a função "pensar" será trocada por uma IA de verdade. */
+async function pensar(texto){
+  const t=texto.toLowerCase();
+  if(/hora|horas/.test(t)) return 'Agora são '+new Date().toLocaleTimeString('pt-BR')+'.';
+  if(/oi|olá|ola/.test(t)) return 'Olá! Pokecom online. Como posso ajudar?';
+  if(/nome/.test(t)) return 'Sou a Notes, sua assistente de overlay.';
+  if(/ajuda|help/.test(t)) return 'Tente: "que horas são", "qual seu nome". Em breve terei uma IA completa.';
+  return 'Ainda estou em modo simulação (v0.1). Recebi: "'+texto+'".';
+}
+NOTES.register({title:'Assistente',x:320,y:50,
+  render(b){
+    b.innerHTML='<div class="log"></div><input placeholder="Fale com a Notes...">';
+    const log=b.querySelector('.log'),inp=b.querySelector('input');
+    const add=(c,t)=>{const p=document.createElement('p');if(c)p.className=c;p.textContent=t;log.appendChild(p);log.scrollTop=1e9};
+    add('', 'Notes: Sistema iniciado.');
+    inp.onkeydown=async e=>{if(e.key==='Enter'&&inp.value.trim()){const v=inp.value.trim();inp.value='';
+      add('me','Você: '+v);add('', 'Notes: '+await pensar(v))}};
+  }
+});
+
+NOTES.start();
+</script>
+</body>
+</html>
