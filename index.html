@@ -99,7 +99,7 @@ async function pensar(texto){
   const t=texto.toLowerCase();
   if(/hora|horas/.test(t)) return 'Agora são '+new Date().toLocaleTimeString('pt-BR')+'.';
   if(/oi|olá|ola/.test(t)) return 'Olá! Pokecom online. Como posso ajudar?';
-  if(/nome/.test(t)) return 'Sou a Notes, sua assistente de overlay.';
+  if(/nome/.test(t)) return 'Olá, me chamo Airi, sua assistente.';
   if(/ajuda|help/.test(t)) return 'Tente: "que horas são", "qual seu nome". Em breve terei uma IA completa.';
   return 'Ainda estou em modo simulação (v0.1). Recebi: "'+texto+'".';
 }
